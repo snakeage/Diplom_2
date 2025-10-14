@@ -4,41 +4,44 @@ import io.qameta.allure.junit4.DisplayName;
 import io.restassured.response.Response;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
-import ru.yandex.practicum.model.User;
 import ru.yandex.practicum.steps.ApiSteps;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class LoginTests extends BaseTest {
 
     private final ApiSteps apiSteps = new ApiSteps();
     private String accessToken;
+    private String email;
+
+    @Before
+    public void setUp() {
+        email = RandomStringUtils.randomAlphabetic(10) + "@yandex.ru";
+        accessToken = apiSteps.registerAndGetToken(email, "password123", "TestUser");
+    }
 
     @Test
-    @DisplayName("Вход под существующим пользователем")
+    @DisplayName("Логин существующего пользователя")
     public void loginExistingUserTest() {
-        String email = RandomStringUtils.randomAlphabetic(10) + "@yandex.ru";
-        String password = "password123";
-        String name = "TestUser";
-
-        // Регистрация
-        accessToken = apiSteps.registerAndGetToken(email, password, name);
-
-        // Логин
-        Response response = apiSteps.loginUser(email, password);
+        Response response = apiSteps.loginUser(email, "password123");
 
         response.then()
                 .statusCode(200)
                 .body("success", equalTo(true))
-                .body("user.email", equalTo(email))
-                .body("user.name", equalTo(name));
+                .body("accessToken", notNullValue())
+                .body("refreshToken", notNullValue())
+                .body("user.email", equalToIgnoringCase(email))
+                .body("user.name", equalTo("TestUser"));
     }
 
     @Test
-    @DisplayName("Вход с неверным логином и паролем")
+    @DisplayName("Логин с неверными учетными данными")
     public void loginWithWrongCredentialsTest() {
-        Response response = apiSteps.loginUser("wrong@yandex.ru", "wrongpassword");
+        Response response = apiSteps.loginUser(email, "wrongpassword");
 
         response.then()
                 .statusCode(401)

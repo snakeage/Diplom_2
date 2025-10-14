@@ -1,11 +1,16 @@
 package ru.yandex.practicum.tests;
 
-import org.junit.Before;
-import ru.yandex.practicum.config.RestConfig;
+import io.restassured.RestAssured;
+import org.junit.BeforeClass;
 
 public class BaseTest {
-    @Before
-    public void setUp() {
-        RestConfig.setUp();
+
+    @BeforeClass
+    public static void setUpAllureAndBaseURI() {
+        // Для Allure
+        System.setProperty("allure.results.directory", "target/allure-results");
+
+        // Базовый URL для всех API-запросов
+        RestAssured.baseURI = "https://stellarburgers.education-services.ru"; // твой рабочий стенд
     }
 }
