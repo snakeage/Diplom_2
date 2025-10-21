@@ -1,5 +1,6 @@
 package ru.yandex.practicum.tests;
 
+import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
 import io.restassured.response.Response;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -21,11 +22,17 @@ public class LoginTests extends BaseTest {
     @Before
     public void setUp() {
         email = RandomStringUtils.randomAlphabetic(10) + "@yandex.ru";
-        accessToken = apiSteps.registerAndGetToken(email, "password123", "TestUser");
+        Response response = apiSteps.registerUser(email, "password123", "TestUser");
+        accessToken = response.then()
+                .statusCode(200)
+                .body("success", equalTo(true))
+                .body("accessToken", notNullValue())
+                .extract().path("accessToken");
     }
 
     @Test
     @DisplayName("Логин существующего пользователя")
+    @Description("Проверка успешного логина существующего пользователя")
     public void loginExistingUserTest() {
         Response response = apiSteps.loginUser(email, "password123");
 
@@ -39,8 +46,21 @@ public class LoginTests extends BaseTest {
     }
 
     @Test
-    @DisplayName("Логин с неверными учетными данными")
-    public void loginWithWrongCredentialsTest() {
+    @DisplayName("Логин с неверным email")
+    @Description("Проверка ошибки при попытке логина с неверным email")
+    public void loginWithWrongEmailTest() {
+        Response response = apiSteps.loginUser("wrong" + email, "password123");
+
+        response.then()
+                .statusCode(401)
+                .body("success", equalTo(false))
+                .body("message", equalTo("email or password are incorrect"));
+    }
+
+    @Test
+    @DisplayName("Логин с неверным паролем")
+    @Description("Проверка ошибки при попытке логина с неверным паролем")
+    public void loginWithWrongPasswordTest() {
         Response response = apiSteps.loginUser(email, "wrongpassword");
 
         response.then()

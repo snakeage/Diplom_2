@@ -1,5 +1,6 @@
 package ru.yandex.practicum.tests;
 
+import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
 import io.restassured.response.Response;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -27,11 +28,17 @@ public class UserTests extends BaseTest {
 
     @Test
     @DisplayName("Создание уникального пользователя")
+    @Description("Проверка успешного создания уникального пользователя и логина")
     public void createUniqueUserTest() {
-        accessToken = apiSteps.registerAndGetToken(email, "password123", "TestUser");
+        Response response = apiSteps.registerUser(email, "password123", "TestUser");
+        accessToken = response.then()
+                .statusCode(200)
+                .body("success", equalTo(true))
+                .body("accessToken", notNullValue())
+                .extract().path("accessToken");
 
-        Response response = apiSteps.loginUser(email, "password123");
-        response.then()
+        Response loginResponse = apiSteps.loginUser(email, "password123");
+        loginResponse.then()
                 .statusCode(200)
                 .body("success", equalTo(true))
                 .body("accessToken", notNullValue())
@@ -42,10 +49,37 @@ public class UserTests extends BaseTest {
 
     @Test
     @DisplayName("Создание уже существующего пользователя")
+    @Description("Проверка ошибки при попытке создать уже зарегистрированного пользователя")
     public void createExistingUserTest() {
-        accessToken = apiSteps.registerAndGetToken(email, "password123", "TestUser");
+        Response response = apiSteps.registerUser(email, "password123", "TestUser");
+        accessToken = response.then()
+                .statusCode(200)
+                .body("success", equalTo(true))
+                .body("accessToken", notNullValue())
+                .extract().path("accessToken");
 
-        User user = new User(email, "password123", "TestUser");
+        User user = new User();
+        user.setEmail(email);
+        user.setPassword("password123");
+        user.setName("TestUser");
+        Response secondResponse = given()
+                .header("Content-Type", "application/json")
+                .body(user)
+                .post("/api/auth/register");
+
+        secondResponse.then()
+                .statusCode(403)
+                .body("success", equalTo(false))
+                .body("message", equalTo("User already exists"));
+    }
+
+    @Test
+    @DisplayName("Создание пользователя без email")
+    @Description("Проверка ошибки при создании пользователя без email")
+    public void createUserWithoutEmailTest() {
+        User user = new User();
+        user.setPassword("password123");
+        user.setName("TestUser");
         Response response = given()
                 .header("Content-Type", "application/json")
                 .body(user)
@@ -54,7 +88,43 @@ public class UserTests extends BaseTest {
         response.then()
                 .statusCode(403)
                 .body("success", equalTo(false))
-                .body("message", equalTo("User already exists"));
+                .body("message", equalTo("Email, password and name are required fields"));
+    }
+
+    @Test
+    @DisplayName("Создание пользователя без пароля")
+    @Description("Проверка ошибки при создании пользователя без пароля")
+    public void createUserWithoutPasswordTest() {
+        User user = new User();
+        user.setEmail(email);
+        user.setName("TestUser");
+        Response response = given()
+                .header("Content-Type", "application/json")
+                .body(user)
+                .post("/api/auth/register");
+
+        response.then()
+                .statusCode(403)
+                .body("success", equalTo(false))
+                .body("message", equalTo("Email, password and name are required fields"));
+    }
+
+    @Test
+    @DisplayName("Создание пользователя без имени")
+    @Description("Проверка ошибки при создании пользователя без имени")
+    public void createUserWithoutNameTest() {
+        User user = new User();
+        user.setEmail(email);
+        user.setPassword("password123");
+        Response response = given()
+                .header("Content-Type", "application/json")
+                .body(user)
+                .post("/api/auth/register");
+
+        response.then()
+                .statusCode(403)
+                .body("success", equalTo(false))
+                .body("message", equalTo("Email, password and name are required fields"));
     }
 
     @After

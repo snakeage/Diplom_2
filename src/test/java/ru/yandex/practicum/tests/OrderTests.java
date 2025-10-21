@@ -1,15 +1,15 @@
 package ru.yandex.practicum.tests;
 
+import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
-import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import ru.yandex.practicum.model.Order;
 import ru.yandex.practicum.steps.ApiSteps;
+import ru.yandex.practicum.steps.OrderSteps;
 
 import java.util.Collections;
 import java.util.List;
@@ -20,24 +20,31 @@ import static org.hamcrest.Matchers.notNullValue;
 public class OrderTests extends BaseTest {
 
     private final ApiSteps apiSteps = new ApiSteps();
+    private final OrderSteps orderSteps = new OrderSteps();
     private String accessToken;
     private List<String> validIngredients;
 
     @Before
     public void setUp() {
         String email = RandomStringUtils.randomAlphabetic(15) + System.currentTimeMillis() + "@yandex.ru";
-        accessToken = apiSteps.registerAndGetToken(email, "password123", "TestUser");
-        validIngredients = apiSteps.getIngredientIds();
+        Response response = apiSteps.registerUser(email, "password123", "TestUser");
+        accessToken = response.then()
+                .statusCode(200)
+                .body("success", equalTo(true))
+                .body("accessToken", notNullValue())
+                .extract().path("accessToken");
+        validIngredients = orderSteps.getIngredientIds();
         if (validIngredients == null || validIngredients.isEmpty()) {
-            throw new IllegalStateException("Failed to retrieve valid ingredients from API");
+            throw new IllegalStateException("Не удалось получить ингредиенты из API");
         }
     }
 
     @Test
     @DisplayName("Создание заказа с авторизацией")
+    @Description("Проверка успешного создания заказа с авторизацией")
     public void createOrderWithAuthTest() {
         Order order = new Order(validIngredients);
-        Response response = apiSteps.createOrder(order, accessToken);
+        Response response = orderSteps.createOrder(order, accessToken);
 
         response.then()
                 .statusCode(200)
@@ -46,13 +53,17 @@ public class OrderTests extends BaseTest {
                 .body("order.number", notNullValue());
     }
 
-    @Ignore("Test fails due to Connection refused on /api/orders, despite curl confirming 401 response")
     @Test
     @DisplayName("Создание заказа без авторизации")
+    @Description("Проверка ошибки при создании заказа без авторизации")
     public void createOrderWithoutAuthTest() {
-        RestAssured.reset();
+        // ВНИМАНИЕ: Согласно документации API, эндпоинт /api/orders должен возвращать 401 Unauthorized
+        // с сообщением "You should be authorised" для неавторизованных запросов.
+        // Однако текущая реализация API возвращает 200 OK (проверено через Postman: https://stellarburgers.education-services.ru/api/orders).
+        // Тест оставлен с ожиданием 401, как указано в документации.
+        // Необходимо уточнить у команды API, является ли это багом или изменением в спецификации.
         Order order = new Order(validIngredients);
-        Response response = apiSteps.createOrderWithoutAuth(order);
+        Response response = orderSteps.createOrderWithoutAuth(order);
 
         response.then()
                 .statusCode(401)
@@ -62,14 +73,26 @@ public class OrderTests extends BaseTest {
 
     @Test
     @DisplayName("Создание заказа без ингредиентов")
+    @Description("Проверка ошибки при создании заказа без ингредиентов")
     public void createOrderWithoutIngredientsTest() {
         Order order = new Order(Collections.emptyList());
-        Response response = apiSteps.createOrder(order, accessToken);
+        Response response = orderSteps.createOrder(order, accessToken);
 
         response.then()
                 .statusCode(400)
                 .body("success", equalTo(false))
                 .body("message", equalTo("Ingredient ids must be provided"));
+    }
+
+    @Test
+    @DisplayName("Создание заказа с неверным хешем ингредиента")
+    @Description("Проверка ошибки при создании заказа с неверным хешем ингредиента")
+    public void createOrderWithInvalidIngredientTest() {
+        Order order = new Order(List.of("invalid_hash_123"));
+        Response response = orderSteps.createOrder(order, accessToken);
+
+        response.then()
+                .statusCode(500);
     }
 
     @After
@@ -78,7 +101,7 @@ public class OrderTests extends BaseTest {
             try {
                 apiSteps.deleteUser(accessToken);
             } catch (Exception e) {
-                System.err.println("Failed to delete user in tearDown: " + e.getMessage());
+                System.err.println("Не удалось удалить пользователя в tearDown: " + e.getMessage());
             }
         }
     }
