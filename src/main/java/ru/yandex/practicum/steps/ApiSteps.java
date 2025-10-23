@@ -6,10 +6,30 @@ import ru.yandex.practicum.model.User;
 
 import static io.restassured.RestAssured.given;
 
+/**
+ * Шаги для работы с API.
+ * Методы возвращают только Response – проверки делаются в тестах.
+ */
 public class ApiSteps {
 
-    @Step("Регистрация пользователя")
+    @Step("Регистрация пользователя (универсальный метод)")
     public Response registerUser(String email, String password, String name) {
+        User user = new User();
+        user.setEmail(email);
+        user.setPassword(password);
+        user.setName(name);
+        return given()
+                .header("Content-Type", "application/json")
+                .body(user)
+                .post("/api/auth/register");
+    }
+
+    /**
+     * «Сырой» запрос регистрации – без создания объекта User.
+     * Используется в тестах, где нужно отправить запрос вручную.
+     */
+    @Step("Сырой запрос регистрации пользователя")
+    public Response registerUserRaw(String email, String password, String name) {
         User user = new User();
         user.setEmail(email);
         user.setPassword(password);
@@ -32,18 +52,12 @@ public class ApiSteps {
     }
 
     @Step("Удаление пользователя")
-    public void deleteUser(String accessToken) {
+    public Response deleteUser(String accessToken) {
         if (accessToken != null) {
-            try {
-                Response response = given()
-                        .header("Authorization", accessToken)
-                        .delete("/api/auth/user");
-
-                response.then()
-                        .statusCode(202);
-            } catch (Exception e) {
-                System.err.println("Не удалось удалить пользователя: " + e.getMessage());
-            }
+            return given()
+                    .header("Authorization", accessToken)
+                    .delete("/api/auth/user");
         }
+        return null;
     }
 }

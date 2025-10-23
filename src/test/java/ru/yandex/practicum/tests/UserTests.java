@@ -10,10 +10,7 @@ import org.junit.Test;
 import ru.yandex.practicum.model.User;
 import ru.yandex.practicum.steps.ApiSteps;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.equalToIgnoringCase;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 public class UserTests extends BaseTest {
 
@@ -51,22 +48,16 @@ public class UserTests extends BaseTest {
     @DisplayName("Создание уже существующего пользователя")
     @Description("Проверка ошибки при попытке создать уже зарегистрированного пользователя")
     public void createExistingUserTest() {
-        Response response = apiSteps.registerUser(email, "password123", "TestUser");
-        accessToken = response.then()
+        // первая регистрация
+        Response first = apiSteps.registerUser(email, "password123", "TestUser");
+        accessToken = first.then()
                 .statusCode(200)
                 .body("success", equalTo(true))
                 .body("accessToken", notNullValue())
                 .extract().path("accessToken");
 
-        User user = new User();
-        user.setEmail(email);
-        user.setPassword("password123");
-        user.setName("TestUser");
-        Response secondResponse = given()
-                .header("Content-Type", "application/json")
-                .body(user)
-                .post("/api/auth/register");
-
+        // вторая регистрация тем же пользователем
+        Response secondResponse = apiSteps.registerUserRaw(email, "password123", "TestUser");
         secondResponse.then()
                 .statusCode(403)
                 .body("success", equalTo(false))
@@ -77,14 +68,7 @@ public class UserTests extends BaseTest {
     @DisplayName("Создание пользователя без email")
     @Description("Проверка ошибки при создании пользователя без email")
     public void createUserWithoutEmailTest() {
-        User user = new User();
-        user.setPassword("password123");
-        user.setName("TestUser");
-        Response response = given()
-                .header("Content-Type", "application/json")
-                .body(user)
-                .post("/api/auth/register");
-
+        Response response = apiSteps.registerUserRaw(null, "password123", "TestUser");
         response.then()
                 .statusCode(403)
                 .body("success", equalTo(false))
@@ -95,14 +79,7 @@ public class UserTests extends BaseTest {
     @DisplayName("Создание пользователя без пароля")
     @Description("Проверка ошибки при создании пользователя без пароля")
     public void createUserWithoutPasswordTest() {
-        User user = new User();
-        user.setEmail(email);
-        user.setName("TestUser");
-        Response response = given()
-                .header("Content-Type", "application/json")
-                .body(user)
-                .post("/api/auth/register");
-
+        Response response = apiSteps.registerUserRaw(email, null, "TestUser");
         response.then()
                 .statusCode(403)
                 .body("success", equalTo(false))
@@ -113,14 +90,7 @@ public class UserTests extends BaseTest {
     @DisplayName("Создание пользователя без имени")
     @Description("Проверка ошибки при создании пользователя без имени")
     public void createUserWithoutNameTest() {
-        User user = new User();
-        user.setEmail(email);
-        user.setPassword("password123");
-        Response response = given()
-                .header("Content-Type", "application/json")
-                .body(user)
-                .post("/api/auth/register");
-
+        Response response = apiSteps.registerUserRaw(email, "password123", null);
         response.then()
                 .statusCode(403)
                 .body("success", equalTo(false))
@@ -129,6 +99,11 @@ public class UserTests extends BaseTest {
 
     @After
     public void tearDown() {
-        apiSteps.deleteUser(accessToken);
+        if (accessToken != null) {
+            Response response = apiSteps.deleteUser(accessToken);
+            if (response != null) {
+                response.then().statusCode(202);
+            }
+        }
     }
 }
